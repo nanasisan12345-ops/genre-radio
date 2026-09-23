@@ -19,6 +19,8 @@ let radioSettings = {
   youtubeKey: typeof embeddedKeys.youtubeKey === 'string' ? embeddedKeys.youtubeKey : '',
 };
 const radioClient = RadioCore.createClient({ fetchFn: (...args) => fetch(...args), settings: () => radioSettings, store: radioStore });
+const playlistCatalog = RadioPlaylists.createCatalog({ json: radioClient.json, settings: () => radioSettings, store: radioStore });
+const playlistPicker = RadioPlaylists.createPicker({ store: radioStore });
 let discovery;
 let discoveryReady;
 const discoveryNotice = message => { document.getElementById('discoveryStatus').textContent = message; };
@@ -47,6 +49,7 @@ async function expandGenres(force = false) {
   } catch (error) { discoveryNotice(`保存済みジャンルを利用中。${error.message}`); }
 }
 async function learnGenres(track) {
+  if (track?.fromPlaylist && !track.artistKnown) return;
   if (!radioSettings.autoExpand || !radioSettings.lastfmKey) return;
   try {
     await discoveryReady;

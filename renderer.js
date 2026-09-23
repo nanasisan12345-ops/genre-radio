@@ -24,6 +24,36 @@ const TRACK_ADJUST_STEP = 10;
 const ARTIST_COOLDOWN = 5; // exclude last N played artists per genre
 
 const MAX_HISTORY = 12;
+const sourceMode = document.getElementById('sourceMode');
+sourceMode.value = radioStore.getItem('gr.sourceMode') === 'search' ? 'search' : 'auto';
+let playlistFailures = 0;
+let playlistSummary = '';
+
+function updateCatalogHint() {
+  document.getElementById('catalogDetails').hidden = true;
+  const list = playlistCatalog.sources(genreSelect.value);
+  document.getElementById('catalogStatus').textContent = sourceMode.value === 'search'
+    ? 'Last.fmで選んだ曲をYouTubeで検索します。'
+    : list.length ? `${list.length}つの公開プレイリストから選曲。毎曲の検索は不要です。`
+      : '試験対応: ジャズ・クラシック・ローファイ。ほかのジャンルは従来の検索方式です。';
+}
+
+function showCatalogReport(data) {
+  const status = document.getElementById('catalogStatus');
+  const list = document.getElementById('catalogSources');
+  list.replaceChildren();
+  for (const report of data.reports) {
+    const li = document.createElement('li'), link = document.createElement('a');
+    link.href = `https://www.youtube.com/playlist?list=${encodeURIComponent(report.id)}`;
+    link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = report.title;
+    li.append(link, document.createTextNode(` · ${report.count}件${report.at ? ` · ${new Date(report.at).toLocaleDateString('ja-JP')}更新` : ''}${report.limited ? ' · 先頭1000件まで' : ''}${report.stale ? ' · 保存済みを使用' : ''}${report.warning ? ` · ${report.warning}` : ''}`));
+    list.append(li);
+  }
+  document.getElementById('catalogDetails').hidden = false;
+  const warnings = data.reports.filter(r => r.warning).length;
+  playlistSummary = `${data.tracks.length}動画 · ${data.reports.filter(r => r.count).length}取得元 · 毎曲の検索なし${warnings ? ` · ${warnings}件の取得元で更新失敗（詳細参照）` : ''}`;
+  status.textContent = playlistSummary;
+}
 
 // ===== DOM =====
 const genreSelect   = document.getElementById("genreSelect");
@@ -238,6 +268,10 @@ function onPlayerStateChange(e) {
       playbackStartTs = Date.now();
       addHistory(currentTrack, currentTag, currentVideoId, artworkImg.src);
       recordPlay(currentTrack, currentTag);
+      if (currentTrack.fromPlaylist) {
+        playlistPicker.record(currentTrack, currentTag);
+        playlistFailures = 0;
+      }
       learnGenres(currentTrack);
     }
   } else if (e.data === YT.PlayerState.PAUSED) {
@@ -255,6 +289,13 @@ function onPlayerError(e) {
   } else {
     stopPlayback();
     setStatus(`YouTube再生エラー（${e.data}）。サイトURL・ブラウザー設定を確認してください。`);
+    return;
+  }
+  if (currentTrack?.fromPlaylist) {
+    playlistPicker.block(currentVideoId);
+    if (++playlistFailures < 5) { play(currentTag, true); return; }
+    stopPlayback();
+    setStatus('プレイリスト内の5候補を再生できませんでした。別のジャンルを試してください。');
     return;
   }
   tryNextCandidate();
@@ -447,8 +488,9 @@ function tryNextCandidate() {
 }
 
 // ===== Main play =====
-async function play(tag) {
+async function play(tag, playlistRetry = false) {
   if (isLoading) return;
+  if (!playlistRetry) playlistFailures = 0;
   if (!radioSettings.lastfmKey || !radioSettings.youtubeKey) {
     setStatus("再生サービスの管理者設定がまだ完了していません。");
     return;
@@ -477,10 +519,24 @@ async function play(tag) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   try {
+    const usePlaylist = !moreLikeMode && sourceMode.value === 'auto' && playlistCatalog.sources(currentTag).length > 0;
+    let catalogData;
+    if (usePlaylist) {
+      document.getElementById('catalogStatus').textContent = '公開プレイリストを取得中…初回は少し時間がかかります。';
+      catalogData = await playlistCatalog.load(currentTag, { isCancelled: () => generation !== playGeneration });
+      if (generation !== playGeneration) return;
+      showCatalogReport(catalogData);
+      if (!catalogData.tracks.length) throw Error('プレイリストの候補を取得できませんでした。取得元の詳細を確認するか「Last.fmから曲を検索」を選んでください。');
+    } else {
+      document.getElementById('catalogDetails').hidden = true;
+      document.getElementById('catalogStatus').textContent = moreLikeMode
+        ? '似た曲モード: Last.fmの関連アーティストから選び、YouTube検索を使います。'
+        : 'この選曲ではLast.fmとYouTube検索を使います。';
+    }
     // In more-like-this mode, use the pre-fetched similar-artist pool
     const tracks = moreLikeMode && moreLikePool.length > 0
       ? moreLikePool
-      : await getTopTracks(currentTag);
+      : usePlaylist ? catalogData.tracks : await getTopTracks(currentTag);
     if (generation !== playGeneration) return;
 
     const poolKey = moreLikeMode ? `__more__${moreLikeOrigin?.artist || ""}` : currentTag;
@@ -514,7 +570,9 @@ async function play(tag) {
         console.log(`[${currentTag}] Cycle reset (all ${tracks.length} tried).`);
       }
 
-      const candidate = available[Math.floor(Math.random() * available.length)];
+      const selection = usePlaylist ? playlistPicker.pick(tracks, currentTag, skipCounts) : null;
+      const candidate = selection ? selection.track : available[Math.floor(Math.random() * available.length)];
+      if (selection) document.getElementById('catalogStatus').textContent = playlistSummary + (selection.relaxed ? ' · 候補が少ないため再生済み制限を緩和' : ' · 直近200曲を回避') + (selection.reset ? ' · 一巡して次の周回' : '');
       played.add(trackKey(candidate));
 
       const query = `${candidate.artist.name} ${candidate.name}`;
@@ -531,8 +589,8 @@ async function play(tag) {
 
       try {
         const [ytIds, artInfo] = await Promise.all([
-          getYouTubeCandidates(query),
-          getArtwork(candidate.artist.name, candidate.name),
+          usePlaylist ? Promise.resolve([candidate.videoId]) : getYouTubeCandidates(query),
+          candidate.fromPlaylist && !candidate.artistKnown ? Promise.resolve({ durationSec: candidate.duration }) : getArtwork(candidate.artist.name, candidate.name),
         ]);
         track = candidate;
         if (generation !== playGeneration) return;
@@ -570,8 +628,8 @@ async function play(tag) {
     playVideo(ids[0]);
 
     trackLabel.textContent  = "NOW PLAYING";
-    trackTitle.textContent  = track.name;
-    trackArtist.textContent = track.artist.name;
+    trackTitle.textContent  = track.videoTitle || track.name;
+    trackArtist.textContent = track.artist.name + (track.fromPlaylist && !track.artistKnown ? (track.artistInferred ? '（動画タイトルより）' : '（投稿チャンネル）') : '');
     trackGenre.textContent  = currentTag.toUpperCase();
     trackTitle.classList.add("clickable");
     trackArtist.classList.add("clickable");
@@ -637,7 +695,7 @@ function addHistory(track, genre, videoId, artworkUrl) {
   const key = trackKey(track);
   history = history.filter(h => trackKey(h.track) !== key);
   history.unshift({
-    track: { name: track.name, artist: { name: track.artist.name } },
+    track: { name: track.name, artist: { name: track.artist.name }, ...(track.fromPlaylist ? { fromPlaylist: true, videoId, videoTitle: track.videoTitle, artistKnown: track.artistKnown, artistInferred: track.artistInferred } : {}) },
     genre,
     videoId,
     artworkUrl: artworkUrl || null,
@@ -669,7 +727,7 @@ function renderHistory() {
     const main = document.createElement("div");
     main.className = "history-item-main";
     main.innerHTML = `
-      <div class="history-item-title">${escapeHtml(track.name)}</div>
+      <div class="history-item-title">${escapeHtml(track.videoTitle || track.name)}</div>
       <div class="history-item-artist">${escapeHtml(track.artist.name)}</div>
       <div class="history-item-genre">${escapeHtml((genre || "").toUpperCase())}</div>
     `;
@@ -697,8 +755,8 @@ function renderHistory() {
       currentCandidateIdx = 0;
       playVideo(videoId);
       trackLabel.textContent  = "NOW PLAYING";
-      trackTitle.textContent  = track.name;
-      trackArtist.textContent = track.artist.name;
+      trackTitle.textContent  = track.videoTitle || track.name;
+      trackArtist.textContent = track.artist.name + (track.fromPlaylist && !track.artistKnown ? (track.artistInferred ? '（動画タイトルより）' : '（投稿チャンネル）') : '');
       trackGenre.textContent  = (genre || "").toUpperCase();
       trackTitle.classList.add("clickable");
       trackArtist.classList.add("clickable");
@@ -878,7 +936,7 @@ function toggleFavorite() {
     setStatus(`Removed from favorites`);
   } else {
     favorites.unshift({
-      track: { name: currentTrack.name, artist: { name: currentTrack.artist.name } },
+      track: { name: currentTrack.name, artist: { name: currentTrack.artist.name }, ...(currentTrack.fromPlaylist ? { fromPlaylist: true, videoId: currentVideoId, videoTitle: currentTrack.videoTitle, artistKnown: currentTrack.artistKnown, artistInferred: currentTrack.artistInferred } : {}) },
       genre: currentTag,
       videoId: currentVideoId,
       artworkUrl: (currentTrackMeta && currentTrackMeta.artwork) || null,
@@ -1201,6 +1259,7 @@ function startWaveformLoop() {
 
 // ===== Events =====
 genreSelect.addEventListener("change", () => {
+  updateCatalogHint();
   playBtn.disabled = !genreSelect.value;
   if (moreLikeMode) disableMoreLikeMode();
   if (genreSelect.value) {
@@ -1224,6 +1283,20 @@ genreSelect.addEventListener("change", () => {
     }
   }
 });
+
+sourceMode.addEventListener('change', () => {
+  stopPlayback();
+  radioStore.setItem('gr.sourceMode', sourceMode.value);
+  updateCatalogHint();
+});
+document.querySelectorAll('[data-catalog-genre]').forEach(button => button.addEventListener('click', () => {
+  stopPlayback();
+  sourceMode.value = 'auto'; radioStore.setItem('gr.sourceMode', 'auto');
+  genreSearch.value = ''; filterGenres('');
+  genreSelect.value = button.dataset.catalogGenre;
+  genreSelect.dispatchEvent(new Event('change'));
+  play(genreSelect.value);
+}));
 
 playBtn.addEventListener("click", () => play());
 nextBtn.addEventListener("click", () => {
@@ -1318,6 +1391,7 @@ document.addEventListener("keydown", (e) => {
   updateFavCount();
   renderHistory();
   await loadGenres();
+  updateCatalogHint();
   if (radioSettings.autoExpand) expandGenres().catch(error => discoveryNotice(error.message));
 })();
 

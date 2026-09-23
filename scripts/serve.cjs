@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(__dirname, '..'));
 const port = Number(process.env.PORT || 4173);
-const allowed = new Set(['index.html', 'style.css', 'renderer.js', 'core.js', 'api.js', 'settings.js', 'public-config.js', 'genres.json', 'README.md', '.nojekyll']);
+const allowed = new Set(['index.html', 'style.css', 'renderer.js', 'core.js', 'playlists.js', 'api.js', 'settings.js', 'public-config.js', 'genres.json', 'README.md', '.nojekyll']);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.md': 'text/plain; charset=utf-8' };
 const server = http.createServer((req, res) => {
   let filename;

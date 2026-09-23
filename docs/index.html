@@ -43,6 +43,20 @@
         </div>
 
         <p id="discoveryStatus" role="status"></p>
+        <label for="sourceMode" class="tuner-label">曲の探し方</label>
+        <select id="sourceMode" class="genre-select">
+          <option value="auto">プレイリスト優先（試験）</option>
+          <option value="search">Last.fmから曲を検索</option>
+        </select>
+        <div class="catalog-examples" aria-label="プレイリストを試す">
+          <button type="button" data-catalog-genre="jazz">ジャズ</button>
+          <button type="button" data-catalog-genre="classical">クラシック</button>
+          <button type="button" data-catalog-genre="lo-fi">ローファイ</button>
+        </div>
+        <p id="catalogStatus" role="status">ジャズ・クラシック・ローファイで試せます。</p>
+        <details id="catalogDetails" class="catalog-details" hidden>
+          <summary>曲の取得元</summary><ul id="catalogSources"></ul>
+        </details>
         <button id="playBtn" class="play-btn" disabled>
           <span class="play-icon">▶</span>
           <span class="play-text">ランダム再生</span>
@@ -173,6 +187,7 @@
 
   <script src="public-config.js"></script>
   <script src="core.js"></script>
+  <script src="playlists.js"></script>
   <script src="api.js"></script>
   <script src="renderer.js"></script>
   <script src="settings.js"></script>

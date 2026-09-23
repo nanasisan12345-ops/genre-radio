@@ -19,7 +19,7 @@ document.getElementById('refreshGenresBtn').addEventListener('click', async even
   event.target.disabled = true;
   try { await expandGenres(true); } finally { event.target.disabled = false; }
 });
-const backupKeys = [...Object.values(STORAGE), 'gr.discovery'];
+const backupKeys = [...Object.values(STORAGE), 'gr.discovery', 'gr.playlistMemory'];
 function exportData(suffix = '') {
   const data = Object.fromEntries(backupKeys.map(key => [key, radioStore.getItem(key)]).filter(([, value]) => value !== null));
   const blob = new Blob([JSON.stringify({ app: 'genre-radio', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
@@ -43,6 +43,7 @@ document.getElementById('importFile').addEventListener('change', async event => 
       if (key === STORAGE.lastGenre) { if (raw.length > 60) throw Error('ジャンル名が長すぎます。'); continue; }
       if (key === STORAGE.volume) { if (!Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > 100) throw Error('音量設定が不正です。'); continue; }
       const value = JSON.parse(raw);
+      if (key === 'gr.playlistMemory') { if (!RadioPlaylists.validMemory(value)) throw Error('プレイリストの再生記録が不正です。'); continue; }
       if (!RadioCore.validSaved(key, value)) throw Error('保存データの内容が不正です。');
       if (!value || typeof value !== 'object') throw Error('データ形式が不正です。');
       if ([STORAGE.history, STORAGE.favorites].includes(key)) {

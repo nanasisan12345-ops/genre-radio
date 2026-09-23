@@ -1064,6 +1064,15 @@ body { font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; }
 .settings-actions button, .import-label { padding: 9px 12px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); border-radius: 4px; font: inherit; cursor: pointer; }
 .import-label input { display: block; max-width: 100%; font-size: 12px; margin-top: 6px; }
 #discoveryStatus { font-size: 12px; line-height: 1.6; color: var(--text-dim); min-height: 2.5em; }
+#sourceMode { font-family: inherit; font-size: 13px; padding-right: 24px; }
+#catalogStatus, .catalog-details { font-size: 12px; line-height: 1.65; color: var(--text-dim); overflow-wrap: anywhere; }
+.catalog-details { margin-bottom: 12px; }
+.catalog-details summary { cursor: pointer; color: var(--accent); }
+.catalog-details ul { padding-left: 18px; }
+.catalog-details li { margin: 8px 0; }
+.catalog-details a { color: var(--accent); }
+.catalog-examples { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.catalog-examples button { padding: 7px 9px; background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px; }
 #storageNotice { color: #ffb18e; font-size: 13px; }
 .track-title, .track-artist, .status-text { overflow-wrap: anywhere; }
 .icon-btn { min-width: 40px; width: auto; font-size: 12px; }
