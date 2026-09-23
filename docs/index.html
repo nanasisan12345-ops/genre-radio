@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genre Radio</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="noise"></div>
+
+  <div class="container">
+    <header class="header">
+      <div class="logo-area">
+        <div class="signal-dot"></div>
+        <h1 class="logo">GENRE<span class="logo-accent">RADIO</span></h1>
+        <div class="live-badge">LIVE</div>
+      </div>
+      <p class="tagline">知らなかった音楽に、出会う。</p>
+      <p id="storageNotice" role="status"></p>
+    </header>
+
+    <main class="main">
+      <!-- 左カラム: チューナー -->
+      <div class="tuner-panel">
+        <label for="genreSelect" class="tuner-label">ジャンルを選択</label>
+        <input
+          type="text"
+          id="genreSearch"
+          class="genre-search"
+          placeholder="ジャンルを検索" aria-label="ジャンルを検索"
+          autocomplete="off"
+        />
+        <div class="select-wrapper">
+          <select id="genreSelect" class="genre-select">
+            <option value="">— Loading genres... —</option>
+          </select>
+          <div class="select-arrow">▾</div>
+        </div>
+
+        <p id="discoveryStatus" role="status"></p>
+        <button id="playBtn" class="play-btn" disabled>
+          <span class="play-icon">▶</span>
+          <span class="play-text">ランダム再生</span>
+        </button>
+
+        <button id="nextBtn" class="next-btn" disabled>
+          次の曲
+        </button>
+
+        <button id="moreLikeBtn" class="next-btn" disabled title="Play tracks from artists similar to current">
+          似た曲を聴く
+        </button>
+
+        <div id="similarGenresWrap" class="similar-genres hidden">
+          <div class="similar-label">SIMILAR GENRES</div>
+          <div id="similarGenresList" class="similar-list"></div>
+        </div>
+
+        <button id="stopBtn" class="stop-btn hidden">
+          停止
+        </button>
+
+        <div class="sleep-timer-wrap">
+          <label for="sleepTimerSelect" class="tuner-label">スリープタイマー</label>
+          <select id="sleepTimerSelect" class="genre-select sleep-select">
+            <option value="0">Off</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+            <option value="90">90 min</option>
+            <option value="120">2 hours</option>
+          </select>
+          <div id="sleepCountdown" class="sleep-countdown hidden"></div>
+        </div>
+      </div>
+
+      <!-- 右カラム上: ステータス -->
+      <div class="status-panel">
+        <div id="ytPlayerWrap"><div id="ytPlayer"></div></div>
+        <div class="waveform" id="waveform">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="now-playing-row">
+          <div class="artwork-frame" id="artworkFrame" title="Open artist on YouTube">
+            <img id="artwork" class="artwork" alt="" />
+            <div class="artwork-placeholder" id="artworkPlaceholder">♪</div>
+          </div>
+          <div class="track-info">
+            <div class="track-label-row">
+              <div class="track-label" id="trackLabel">NOW PLAYING</div>
+              <div class="track-actions">
+                <button id="lyricsBtn" class="icon-btn" title="Show lyrics" disabled>歌詞</button>
+                <button id="favBtn" class="fav-btn" title="お気に入りに追加" aria-label="お気に入りに追加" aria-pressed="false" disabled><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 21 3.4 12.6C-2 7.2 5.2-.8 12 6c6.8-6.8 14 1.2 8.6 6.6Z" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+              </div>
+            </div>
+            <div class="track-title" id="trackTitle">Select a genre and hit play</div>
+            <div class="track-artist" id="trackArtist">—</div>
+            <div class="track-genre" id="trackGenre"></div>
+            <div class="track-meta" id="trackMeta"></div>
+          </div>
+        </div>
+
+        <!-- 音量コントロール -->
+        <div class="volume-control" id="volumeControl">
+          <button id="muteBtn" class="mute-btn" title="Mute (M)">
+            <span id="muteIcon">🔊</span>
+          </button>
+          <input
+            type="range"
+            id="volumeSlider"
+            class="volume-slider"
+            min="0" max="100" value="80"
+            title="Volume (↑↓) - saved per genre"
+          />
+          <span id="volumeValue" class="volume-value">80</span>
+          <button id="trackDownBtn" class="track-adjust-btn" title="Mark this track as too loud (learned per-track)" disabled>−</button>
+          <button id="trackUpBtn" class="track-adjust-btn" title="Mark this track as too quiet (learned per-track)" disabled>+</button>
+        </div>
+
+        <div class="status-text" id="statusText" role="status">Ready to explore</div>
+      </div>
+
+      <!-- 右カラム下: 履歴/お気に入り -->
+      <div class="history-panel">
+        <div class="history-tabs">
+          <button id="tabRecent" class="history-tab active" data-tab="recent">再生履歴</button>
+          <button id="tabFav" class="history-tab" data-tab="fav">お気に入り <span id="favCount" class="tab-count">0</span></button>
+        </div>
+        <ul class="history-list" id="historyList"></ul>
+      </div>
+    </main>
+
+    <details id="settingsPanel" class="settings-panel">
+      <summary>設定・データ管理</summary>
+      <form id="settingsForm">
+        <p>ジャンルの自動拡張やデータのバックアップを管理します。</p>
+        <label><input id="autoExpand" type="checkbox" checked /> ジャンルを自動拡張（人気タグは1日ごと、曲のタグは再生時）</label>
+        <div class="settings-actions"><button type="submit">設定を保存</button><button type="button" id="refreshGenresBtn">ジャンルを今すぐ更新</button><button type="button" id="captureBtn">音声波形の共有を開始 / 終了</button></div>
+        <p>音声波形は対応ブラウザーでタブ音声の共有が必要です。通常再生には不要です。</p>
+        <p id="settingsStatus" role="status"></p>
+      </form>
+      <div class="settings-actions"><button id="exportBtn">データを書き出す</button><label class="import-label">データを取り込む<input id="importFile" type="file" accept="application/json,.json" /></label></div>
+      <p>履歴・お気に入り・音量・ジャンルをJSONでバックアップできます。APIキーは含みません。取り込み前に現在のデータを書き出します。</p>
+    </details>
+    <footer class="footer">
+      <button id="statsBtn" class="footer-btn" title="Listening statistics">再生統計</button>
+      <span class="footer-sep">·</span>
+      <span>Powered by Last.fm × YouTube</span>
+      <span class="footer-sep">·</span>
+      <span>Web Edition</span>
+    </footer>
+  </div>
+
+  <!-- Modal overlay (shared for stats / lyrics) -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 id="modalTitle" class="modal-title">Title</h2>
+        <button id="modalClose" class="modal-close">✕</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="public-config.js"></script>
+  <script src="core.js"></script>
+  <script src="api.js"></script>
+  <script src="renderer.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
